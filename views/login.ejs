@@ -1,0 +1,105 @@
+  
+<!DOCTYPE html>
+<html>
+<head>
+	<link rel="shortcut icon" href="/images/thatteidli_icon.jpg" type="image/x-icon"/>
+	<title>Thatte Idli</title>
+
+	<link href="https://fonts.googleapis.com/css?family=Poppins:600&display=swap" rel="stylesheet">
+	<script src="https://kit.fontawesome.com/a81368914c.js"></script>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="/stylesheets/login.css">
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+	<script type='text/javascript'>
+	 $(function(){
+
+
+		var err = '<%- error %>';
+		console.log(err);
+		if(err === 'none'){
+			$('p#error').text('');
+		}
+		if(err === 'Manager'){
+			$('p#error').text('Store Manager Not Allowed to Login');
+		}
+		if(err === ''){
+			$('p#error').text('Driver Not Allowed to Login');
+		}
+		if(err === 'userEmailInvalid'){
+			$('p#error').text('User name does not Exist');
+		}
+		if(err === 'userPasswordInvalid'){
+
+			$('p#error').text('Password is Incorrect');
+		}
+		if(err === 'updated'){
+			$('p#error').text('Password has Changed, Login with Default Password').css("color","green");
+		}
+		if(err === 'Password Changed'){
+
+			$('p#error').text('Password has Changed, Login with New Password').css("color","green");
+		}
+
+
+	 });
+
+	</script>
+</head>
+
+<body>
+		<img class="wave" src="/images/thatteidli.jpg" height="100" width="700">
+		<div class="container">
+		<div class="img"></div>
+		<div class="login-content">
+			<form method="POST" action="/thatte/login">
+				<p style="color:red" id="error"></p>
+				<h2 class="title">Welcome</h2>
+				<div id="error"></div>
+           		<div id="email" class="input-div one">
+           		   <div class="i">
+           		   		<i class="fas fa-user"></i>
+           		   </div>
+           		   <div class="div">
+           		   		<h5>Username</h5>
+           		   		<input type="text" name="userEmail" class="input" required>
+					  </div>
+				  </div>
+           		<div class="input-div pass">
+           		   <div class="i"> 
+           		    	<i class="fas fa-lock"></i>
+           		   </div>
+           		   <div class="div">
+           		    	<h5>Password</h5>
+           		    	<input type="password" name="password" class="input" required>
+            	   </div>
+            	</div>
+            	<a href="/thatte/forgotPassword">Forgot Password?</a>
+            	<input type="submit" class="btn" value="Login">
+            </form>
+        </div>
+    </div>
+<script type="text/javascript">
+	
+const inputs = document.querySelectorAll(".input");
+
+function addcl(){
+	let parent = this.parentNode.parentNode;
+	parent.classList.add("focus");
+}
+
+function remcl(){
+	let parent = this.parentNode.parentNode;
+	if(this.value == ""){
+		parent.classList.remove("focus");
+	}
+}
+
+inputs.forEach(input => {
+	input.addEventListener("focus", addcl);
+	input.addEventListener("blur", remcl);
+});
+</script>
+</body>
+</html>

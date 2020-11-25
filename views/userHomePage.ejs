@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="shortcut icon" href="/images/thatteidli_icon.jpg" type="image/x-icon"/>
+  <title>Thatte Idli</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/stylesheets/modal.css">
+  <link rel="stylesheet" href="/stylesheets/imageModal.css">
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <script type='text/javascript'>
+
+    var stores = '<%- JSON.stringify(stores) %>';
+    var users = '<%- JSON.stringify(users)%>';
+    var storesObj = JSON.parse(stores);
+    var usersObj = JSON.parse(users);
+    var imagesObj;
+    var selectedDate;
+    var filterDate;
+  $(function(){
+    $.each(storesObj,function(index,item){
+      $('#datePicker'+item._id).change(function(){
+       var da = $(this).val();
+       var d = getFormattedDate(new Date(da));
+       var dateArray = d.split('|');
+       filterDate = dateArray[0];
+       selectedDate = filterDate;
+      $.getJSON('/image/getByStoreIdAndDate/'+item._id+'/'+filterDate, function(data){
+          imagesObj = data;
+          getImages(data);
+        });
+    });
+
+      $('#select'+item._id).change(function(){
+          var imageStatus = $(this).val();
+          if(imageStatus === 'All'){
+            getImages(imagesObj);
+          }else if(imageStatus === 'Query'){
+            var status = true;
+            $.getJSON('/image/getImageByStoreIdAndClarityStatusAndDate/'+item._id+'/'+status+'/'+selectedDate,function(result){
+              getImages(result);
+                     })
+          }
+          else{
+            $.getJSON('/image/getImageByStoreIdAndImageStatusAndDate/'+item._id+'/'+imageStatus+'/'+selectedDate,function(result){
+              getImages(result);
+                     })
+              }   
+        })
+      })
+  });
+
+    
+
+    function onStore(a){
+        $('.select').val('All');
+        var dateFilter = $('#datePicker'+a).val()
+        var today;
+        var date = new Date();
+        if(dateFilter === ''){
+          today = getFormattedDate(date);
+          var day = ("0" + date.getDate()).slice(-2);
+          var month = ("0" + (date.getMonth() + 1)).slice(-2);
+          var to = date.getFullYear()+"-"+(month)+"-"+(day) ;
+          $('#datePicker'+a).val(to);
+        }
+        else{
+          today = getFormattedDate(new Date(dateFilter));
+        }
+        
+        
+        var todayArray = today.split('|');
+        selectedDate = todayArray[0];
+
+        $.getJSON('/image/getByStoreIdAndDate/'+a+'/'+todayArray[0], function(data){
+          imagesObj = data;
+          getImages(data);
+        });
+    }
+    
+    function getImages(data){
+
+         var image =  $('div#image');
+         var img = '';
+         if(data.length === undefined){
+        
+            img += 'No Records Found on '+selectedDate; 
+          }
+          else{
+            img += '<div class="row">';
+            $.each(data,function(index,item){
+            var commentsLengthArray = [];
+            var commentLength;
+            if(item.comments === undefined){
+              commentLength = 0;
+            }
+            else{
+              var comments = JSON.parse(item.comments);
+              $.each(comments,function(a,b){
+              commentsLengthArray.push(a);
+              commentLength = commentsLengthArray.length
+            })
+            }
+            console.log(commentLength);
+            img +='  <div class="column">';
+            var i = index;
+            i++;
+            img += '<b>'+item.categoryId+'</b><br/>';
+            img += '<p>'+item.subCategoryId+'</p>';
+            img += '<p>'+item.createdAt+'</p>';
+            //img += '<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+item.imageName+'" height="250" width="250" onclick="imageModal(\''+item.imageName+'\')">';
+            img += '<img src="/images/'+item.imageName+'" height="250" width="250" onclick="imageModal(\''+item.imageName+'\')"></img>';
+            if(usersObj[0].roleId === 'Admin'){
+              img += '<br/>';
+              img += '<br/>';
+              img +='<label>Choose Status :</label>&nbsp;<select class="selectedStatus" id="selectedStatus-'+item._id+'"><option value="none">None Selected</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="In Pending">In Pending</option></select>';
+            }
+
+            img +='<a id="comment'+item._id+'" onclick="modal(\''+item._id+'\')">Comments('+commentLength+')</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+              
+            if(usersObj[0].roleId === 'Super_Admin'){
+
+              if(item.imageStatus === 'In Pending'){
+              img += '<b id="status'+item._id+'" style="color:blue">Status: '+item.imageStatus+'</b>';
+              }
+              else if(item.imageStatus === "Approved"){
+              img += '<b id="status'+item._id+'" style="color:green">Status: '+item.imageStatus+'</b>';
+              }
+              else if(item.imageStatus === "Rejected"){
+                img += '<b id="status'+item._id+'" style="color:red">Status: '+item.imageStatus+'</b>';
+              }
+
+               img += '<div id="div'+item._id+'"></div>';
+              if(item.clarityMessage.length > 0){
+                img += '&nbsp;&nbsp;<button id="clarityBtn'+item._id+'" onclick="clarityModal(\''+item._id+'\')">Query - '+item.clarityMessage+'</button>';
+              }
+            }
+            img +='</div>';
+          });
+          img += '</div>';
+          }
+          image.empty();
+          image.append(img);
+
+          $.each(data,function(index,item){
+            $('select#selectedStatus-'+item._id).val(item.imageStatus);
+          })
+
+          var matches = document.querySelectorAll(".selectedStatus");
+          for(var match of matches){
+            match.addEventListener('change',function(event){
+              var id = ''+event.target.id;
+              var idArray = id.split('-');
+              var imageStatus = event.target.value;
+              if(imageStatus !== 'none'){
+              $.ajax({
+                  url: '/image/updateById/'+idArray[1],
+                  type: 'PUT',
+                  data: {
+                  "imageStatus" : imageStatus,
+                  },
+                  success: function(data) {
+                  alert('Status Changed to '+imageStatus);
+                    }
+                  });
+              }
+              else{
+                alert('Wrong Selection None Selected');
+              }
+
+            });
+          }
+    }
+
+
+    function clarityModal(id){
+      var images;
+      var imageId;
+      var categoryId;
+      var subCategoryId
+      var imageStatus
+      var imageName;
+      var clarityStatus;
+      var clarityObj;
+
+      $.getJSON('/image/getById/'+id,function(result){
+        images = result;
+        console.log(result.clarityMessage.length);
+            imageId = result._id;
+            categoryId = result.categoryId;
+            subCategoryId = result.subCategoryId;
+            imageStatus = result.imageStatus;
+            imageName = result.imageName;
+            clarityMessage = result.clarityMessage;
+            clarityStatus = result.clarityStatus;
+            createdAt = result.createdAt;
+       
+            console.log('comments' + clarityStatus + ','+clarityMessage.length);
+            if(result.comments === undefined || JSON.stringify(result.comments).length <= 4){
+              comments = 'Empty';
+            }
+            else{
+              comments = JSON.parse(result.comments);
+            }
+                      var clarityModal = $('div#statusModal');
+                      var clarity = '';
+                      clarity += '<div id="statusMod" class="modal">';
+                      clarity += '<div class="modal-content">';
+                      clarity += '<span id="close" class="close">&times;</span>';
+                      clarity += '<h3 style="text-align:center"><u>Query Section</u></h3><br/>';
+                      clarity += '<b>'+categoryId+' | '+subCategoryId+'</b>';
+                      clarity += '<br/>';
+                      if(imageStatus === 'In Pending'){
+                        clarity += '<b style="color:blue">Status: '+imageStatus+'</b>';
+                      }
+                      else if(imageStatus === "Approved"){
+                        clarity += '<b style="color:green">Status: '+imageStatus+'</b>';
+                      }
+                      else if(imageStatus === "Rejected"){
+                        clarity += '<b style="color:red">Status: '+imageStatus+'</b>';
+                      }
+                      clarity += '<div class="row">';
+                      clarity += '<div class="column">';
+                      //clarity += '<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+imageName+'" height="250" width="250" onclick="imageModal(\''+imageName+'\')"></img>';
+                      clarity += '<img src="/images/'+imageName+'" height="250" width="250" onclick="imageModal(\''+imageName+'\')"></img>';
+                      clarity += '<p>Created At : '+createdAt+'</p>';
+                      clarity += '</div>';
+                              $.getJSON('/clarity/getClarityImageByImageId/'+imageId,function(result){
+                                clarityObj = result;
+                                console.log(clarityObj);
+                      if(clarityObj.response === undefined){
+                        $.each(clarityObj,function(index,item){
+                        clarity += '<div class="column">';
+                        //clarity += '<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+item.clarityName+'" height="250" width="250" onclick="imageModal(\''+item.clarityName+'\')"></img>';
+                        clarity += '<img src="/images/'+item.clarityName+'" height="250" width="250" onclick="imageModal(\''+item.clarityName+'\')"></img>';
+                        clarity += '<p>Created At : '+item.createdAt+'<p>';
+                        clarity += '</div>';
+
+                      });
+                      }
+                      clarity += '</div>';
+                      if(!clarityStatus){
+                        clarity += '<button id="clarify" disabled>Close Query for Manager</button>';
+                      }
+                      else{
+                        clarity += '<button id="clarify">Close Query for Manager</button>';
+                      }
+                      clarity +='<br/>';
+                      clarity += '<b style="text-align:center;"><u>Comments</u></b>';
+                      clarity +='<br/>';
+                      if(comments === 'Empty'){
+                        clarity += '<br/>';
+                        clarity += '<p>No Comments Found</p>';
+                      }
+                      else{
+                        clarity += '<table>';
+                      clarity += '<tr><th width="200">Comments</th><th width="200">Name</th><th width="200">Type</th><th width="200">Date</th></tr>';
+                      $.each(comments,function(index,item){
+                        clarity += '<tr><td width="200">'+item.comment+'</td><td width="200">'+item.user+'</td><td width="200">'+item.type+'</td><td width="200">'+item.date+'</td></tr>';
+                      })
+                      clarity += '</table>';
+                    }
+                      clarity += '</div>';
+                      clarity += '</div>';
+                      clarityModal.empty();
+                      clarityModal.append(clarity);
+                      document.getElementById('statusMod').style.display="block";
+                      $('span#close').click(function(){
+                      document.getElementById('statusMod').style.display="none";
+                      });
+                      $('#clarify').click(function(){
+                        alert('Clarified..!!');
+                        $.ajax({
+                        url: '/image/updateById/'+imageId,
+                        type: 'PUT', 
+                        data: {
+                        "clarityStatus" : false,
+                        "clarityMessage": "Clarified"
+                        },
+                    success: function(data) {
+                    console.log(data);
+                    $('button#clarityBtn'+imageId).html('Query - Clarified');
+                    console.log(imageId);
+                    $('#clarityStatus'+imageId).prop("checked", false);  
+                }
+            });
+            })
+          }) 
+      })
+    }
+    function getFormattedDate(d){
+
+      var format;
+    month = '' + (d.getMonth() + 1),
+    day = '' + d.getDate(),
+    year = d.getFullYear();
+    if (month.length < 2) 
+    month = '0' + month;
+    if (day.length < 2) 
+    day = '0' + day;
+    hours = '' + (d.getHours());
+      if(hours >=12){
+            if(hours!==12){
+            hours = hours%12;
+            }
+        format = 'PM';
+    }
+    else{
+        format = 'AM';
+    }
+    if(hours < 10){
+        if(hours === 0){
+            hours = 12;
+        }else{
+            hours = ''+ 0 + hours;
+        }
+        }
+       
+    minutes = d.getMinutes()
+    if(minutes < 10){
+        minutes = ''+ 0 + minutes;
+    }
+    seconds = d.getSeconds()
+    if(seconds < 10){
+        seconds = ''+ 0 + seconds;
+    }
+    var time = [hours,minutes,seconds].join(':');
+    var today = [day,month,year,].join('-');
+    
+return  today +' | '+ time +' '+format;
+
+
+    }
+
+
+    var commentsArray = [];
+
+    function modal(id){
+      var comments;
+      var clarityStatus;
+      $.getJSON('/image/getById/'+id, function(data){
+        if(data.comments === undefined){
+              comments = 'Empty';
+              }
+            else{
+              comments = JSON.parse(data.comments);
+            }
+      clarityStatus = data.clarityStatus
+      var myModal = $('div#modal');
+      var modal = '';
+      modal += '<div id="myModal" class="modal">';
+      modal += '<div class="modal-content">';
+      modal += '<span id="close" class="close">&times;</span>';
+      modal += '<h3 style="text-align:center"><u>Comments Section</u></h3><br/>';
+
+      if(clarityStatus){
+        modal += '<b>Query?</b>&nbsp;&nbsp;<input id="query" class="query" type="checkbox" name="query" value="'+id+'" checked onclick="return false;">&nbsp;enable re-upload option for manager<br/>';
+      }
+      else{
+        modal += '<b>Query?</b>&nbsp;&nbsp;<input id="query" class="query" type="checkbox" name="query" value="'+id+'">&nbsp;enable re-upload option for manager<br/><br/>';
+      }
+      modal += '<label>Enter Comments:</label>&nbsp;<input type="text" id="com" name="comment">&nbsp;<button id="comment">Comment</button><br/>';
+      modal += '<div id="commentTable"></div>';
+      modal +='<br/>';
+      modal += '</div>';
+      modal += '</div>';
+      myModal.empty();
+      myModal.append(modal);
+      commentsTable(comments);
+      
+     document.getElementById('myModal').style.display="block";
+      $('span#close').click(function(){
+        document.getElementById('myModal').style.display="none";
+        commentsArray = [];
+      });
+
+      var query = document.querySelectorAll(".query");
+          for(var q of query){
+            q.addEventListener('change',function(event){
+                if(event.target.checked){
+                  var id = event.target.value;
+                  $.ajax({
+                  url: '/image/updateById/'+id,
+                  type: 'PUT',
+                  data: {
+                  "clarityStatus" : true,
+                  "clarityMessage": "Waiting"
+                  },
+                  success: function(data) {
+                  console.log(data);
+                  $('button#clarityBtn'+id).text('Query - Waiting');
+                    }
+                  });
+                }
+              })
+            }
+
+      
+      $('button#comment').click(function(){
+
+           var inpComment = $('input#com').val();
+           $('input#com').val(' ');
+           if(inpComment+'' === '' || inpComment === ' '){
+             alert('Comment Box is Empty');
+           }
+           else{
+           var obj = {
+             user:usersObj[0].userName,
+             type: usersObj[0].roleId,
+             date: getFormattedDate(new Date()),
+             comment:inpComment 
+             }
+             commentsArray.push(obj);
+           $.ajax({
+            url: '/image/updateById/'+id,
+            type: 'PUT',
+            data: {
+              "comments" : JSON.stringify(commentsArray)
+            },
+            success: function(data) {
+              $('a#comment'+id).text("Comments("+commentsArray.length+")");
+              commentsTable(commentsArray);
+              }
+           });
+          }
+      })
+    });
+    }
+
+
+  
+    function commentsTable(comments){
+        commentsArray = [];
+      var commentTable = $('div#commentTable');
+      var comment = '';
+
+      if(comments === 'Empty'){
+        comment +='<br/>';
+        comment +='<p>No Comments Found</p>';
+
+      }
+      else{
+        comment += '<table>';
+        comment += '<tr><th width="200">Comments</th><th width="200">Name</th><th width="200">Type</th><th width="200">Date</th></tr>';
+        
+        $.each(comments,function(index,item){
+           commentsArray.push(item);
+           comment += '<tr><td width="200">'+item.comment+'</td><td width="200">'+item.user+'</td><td width="200">'+item.type+'</td><td width="200">'+item.date+'</td></tr>';
+        })
+        comment += '</table>';
+
+      }
+      commentTable.empty();
+      commentTable.append(comment);
+    }
+
+    function imageModal(imageName){
+      var imageModal = $('div#imageModal');
+      var image = '';
+      image += '<div id="imageMod" class="imgmodal">';
+      image += '<span id="close" class="imgclose">&times;</span>';
+      //image += '<img class="imgmodal-content" src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+imageName+'">';
+      image += '</div>';
+      imageModal.empty();
+      imageModal.append(image); 
+
+       document.getElementById('imageMod').style.display="block";
+        $('span#close').click(function(){
+        document.getElementById('imageMod').style.display="none";
+        });
+    }
+
+    function getLatLong(store){
+
+      if(navigator.geolocation){
+        navigator.geolocation.watchPosition(showPosition);
+      }
+
+    function showPosition(position){
+      console.log(position.coords.latitude);
+      console.log(position.coords.longitude);
+    }
+      var storeString = ''+store;
+      var storeArray = storeString.split('|');
+      var storeName = storeArray[1]
+      var latLongArray = storeArray[0].split(',');
+      var latitude = latLongArray[0];
+      var longitude = latLongArray[1];
+      var mapModal = $('div#mapModal');
+      var map = '';
+      map += '';
+      map += '<div id="mapMod" class="imgmodal">';
+      map += '<span id="close" class="imgclose">&times;</span>';
+      map += '<div id="googleMap" style="width:100%;height:500px;"></div>';
+      map += '</div>';
+      map += '';
+      mapModal.empty();
+      mapModal.append(map);
+
+      var mapProp= {
+        center:new google.maps.LatLng(parseFloat(latitude), parseFloat(longitude)),
+        zoom:15,
+      };
+      var map = new google.maps.Map(document.getElementById("googleMap"),mapProp);
+      var marker = new google.maps.Marker({
+        position: new google.maps.LatLng(parseFloat(latitude), parseFloat(longitude)),
+        map:map,
+        title:storeName
+      });
+
+      document.getElementById('mapMod').style.display="block";
+        $('span#close').click(function(){
+        document.getElementById('mapMod').style.display="none";
+        });
+    }
+
+</script>
+</head>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSlBN9eQZSfUirxFQ-ERj868Uxg-mYgQQ"></script>
+<body>
+<a href="/thatte/login">Log out</a><br/>
+<a href="/thatte/changePassword">Change Password</a>
+<div class="container">
+    <% users.forEach((user)=>{ %>
+      <h4>Welcome, <%= user.userName%></h4>
+      <% }) %>
+    <ul class="nav nav-pills">
+      <li class="active"><a data-toggle="pill" href="#home">Stores</a></li>
+      <% stores.forEach((store)=>{ %>
+        <li><a data-toggle="pill" href="#store<%=store._id%>" onclick="onStore('<%= store._id%>')"><%= store.storeName%></a></li>
+    <% }) %>
+    </ul>
+    
+    <div class="tab-content">
+      <div id="home" class="tab-pane fade in active">
+        <h3>Stores</h3>
+            <table id="myTable">
+                <tr class="header">
+                  <th style="width:20%;">Store Name</th>
+                  <th style="width:30%;">Store Address</th>
+                  <th style="width:30%;">Store Timings</th>
+                  <th style="width:20%;">Store Location</th>
+                </tr>
+             <% stores.forEach((store)=>{ %>
+                <tr id="<%=store.storeName%>" onclick="onStore('<%= store._id%>')">
+                  <td><%= store.storeName%></td>
+                  <td><%= store.storeAddress %></td>
+                  <td><%= store.storeTimings %></td>
+                  <td><img src="/images/mapicon.jpg" height="50" onclick="getLatLong('<%= store.storeLocation%>|<%= store.storeName%>')"></td>
+                </tr>
+            <% }) %>
+              </table>
+      </div>
+    
+      <% stores.forEach((store)=>{ %>
+      <div style="padding: 10px;" id="store<%=store._id%>" class="tab-pane fade">
+        <label for="date">Filter By Date:</label>
+        <input type="date" class="datePicker" id="datePicker<%=store._id%>" name="selectedDate">&nbsp;&nbsp;
+        <label for="status">Filter By Status:</label>
+        <select class="select" id="select<%=store._id%>"><option value="All">All</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="In Pending">In Pending</option><option value="Query">Query</option></select>
+        <h3><%= store.storeName%></h3>
+        <div id="image"></div>
+      </div>
+      <% }) %>
+      <div id="modal"></div>
+      <div id="statusModal"></div>
+      <div id="imageModal"></div>
+      <div id="mapModal"></div>
+    </div>
+  </div>
+
+</body>
+</html>

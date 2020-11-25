@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html>
+    <link rel="shortcut icon" href="/images/thatteidli_icon.jpg" type="image/x-icon"/>
+    <title>Thatte Idli</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="/stylesheets/modal.css">
+<link rel="stylesheet" href="/stylesheets/imageModal.css">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+
+<head>
+<style>
+    body,h1,h2,h3,h4,h5,h6 {font-family: "Raleway", sans-serif}
+    
+    .divide {
+        float: left;
+        width: 50%;
+        padding: 5px;
+    }
+    
+    /* Clear floats after the columns */
+    .main:after {
+        content: "";
+        display: table;
+        clear: both;
+        background-color: white;
+    }
+
+
+</style>
+
+<script type='text/javascript'>
+    var stores = '<%- JSON.stringify(stores) %>';
+    var users = '<%- JSON.stringify(users)%>';
+    var storesObj = JSON.parse(stores);
+    var usersObj = JSON.parse(users);
+    var firstStoreId = storesObj[0]._id;
+    var selectedStoreId;
+    var selectedDate;
+    var filterDate;
+    var catObj;
+    var storeOrDelivery = true;
+    var deliveryObj;
+$(function(){
+    var colorMap = new Map();
+    colorMap.set(0,'w3-pink');
+    colorMap.set(1,'w3-orange');
+    colorMap.set(2,'w3-cyan');
+    colorMap.set(3,'w3-purple');
+
+    //Date Picker OnChange
+    $('#datePicker').change(function(){
+        var date = $(this).val();
+        var filteredDate = getFormattedDate(new Date(date));
+        //Hit an API to Get ImageByStoreID and Date
+        selectedDate = filteredDate;
+        if(storeOrDelivery){
+          $.getJSON('/image/getByStoreIdAndDate/'+selectedStoreId+'/'+filteredDate, function(data){
+          imagesObj = data;
+          //selectedDate = filteredDate;
+          imageView(data);
+        });
+        }else{
+          $.getJSON('/image/getDeliveryImage/'+selectedDate,function(data){
+          deliveryObj = data;
+          onDelivery(data);
+          });
+        }
+
+        
+
+    });
+
+    $('.btn').click(function(){
+        var imageStatus = $(this).val();
+        //Hit an API to Get ImageByStoreId,Status,Date
+        if(imageStatus === 'All'){
+            if(storeOrDelivery){
+              imageView(imagesObj);
+            }
+            else{
+              onDelivery(deliveryObj);
+            }
+          }else if(imageStatus === 'Query'){
+            var status = true;
+
+            if(storeOrDelivery){
+              $.getJSON('/image/getImageByStoreIdAndClarityStatusAndDate/'+selectedStoreId+'/'+status+'/'+selectedDate,function(result){
+                imageView(result);
+            })
+            }else{
+                $.getJSON('/image/getDeliveryImageByClarity/'+selectedDate+'/'+status,function(result){
+                  onDelivery(result);
+                });
+            }
+          }
+          else{
+            if(storeOrDelivery){
+              $.getJSON('/image/getImageByStoreIdAndImageStatusAndDate/'+selectedStoreId+'/'+imageStatus+'/'+selectedDate,function(result){
+                imageView(result);
+                })
+            }else{
+              $.getJSON('/image/getDeliveryImage/'+selectedDate+'/'+imageStatus,function(result){
+                onDelivery(result);
+              })
+            }
+          }
+    });
+
+          var date = new Date();
+
+          var day = ("0" + date.getDate()).slice(-2);
+          var month = ("0" + (date.getMonth() + 1)).slice(-2);
+          var to = date.getFullYear()+"-"+(month)+"-"+(day) ;
+          $('#datePicker').val(to);
+          var today = getFormattedDate(date);
+            //Hit an API to Get ImageByStoreId And Date
+          $.getJSON('/image/getByStoreIdAndDate/'+firstStoreId+'/'+today, function(data){
+          imagesObj = data;
+          selectedStoreId = firstStoreId;
+          selectedDate = today;
+          imageView(data);
+        });
+
+        $.getJSON('/category/getAll', function(data){
+            var categoryButton = $('div#categoryButton');
+            var category = '';
+            category += '<label>Filter By Category:&nbsp;&nbsp;&nbsp;&nbsp;</label>';
+             $.each(data,function(index,item){
+                  category += '&nbsp;<button id="catButton'+item._id+'" class="w3-button" onclick="getCategory(\''+item._id+'\')">'+item.categoryName+'</button>';
+            })
+            categoryButton.empty();
+            categoryButton.append(category);
+
+            $.each(data,function(index,item){
+            $('button#catButton'+item._id).addClass(colorMap.get(index));
+            })
+
+        });
+
+        $('select#subCategory').change(function(){
+          var obj = [];
+          var subCategoryId = $(this).val();
+          if(subCategoryId === 'All'){
+            imageView(catObj);
+          }
+          else{
+            $.getJSON('/image/getImageBySubCategoryId/'+selectedStoreId+'/'+subCategoryId+'/'+selectedDate, function(data){
+              imageView(data);
+            });   
+          }
+        });
+
+    });
+
+function getCategory(catId){
+    $.getJSON('/image/getImageByCategoryId/'+selectedStoreId+'/'+catId+'/'+selectedDate, function(data){
+      catObj = data;
+      $.getJSON('/subCategory/getSubCategory/'+catId,function(result){
+        console.log(result);
+        if((result["message"]) !== "Not Found"){
+        $('select#subCategory').empty();
+        $('select#subCategory').append('<option value="All">All</option>');
+        $.each(result,function(index,item){
+          $('select#subCategory').append('<option value="'+item._id+'">'+item.subCategoryName+'</option>');
+        })
+        }else{
+          $('select#subCategory').empty();
+          $('select#subCategory').append('<option value="All">All</option>');
+        }
+      })
+      imageView(data);
+    })
+}
+
+
+//Store Image Display 
+    function onStore(storeid){
+      storeOrDelivery = true;
+    $('div#categoryButton').removeClass('hidden');
+    $('p#filterBySubCat').removeClass('hidden');
+    $('#delivery').removeClass('w3-text-teal');
+    $('#store'+selectedStoreId).removeClass('w3-text-teal');
+    $('#store'+storeid).addClass('w3-text-teal');
+    selectedStoreId = storeid;
+    $.getJSON('/image/getByStoreIdAndDate/'+selectedStoreId+'/'+selectedDate, function(data){
+          imagesObj = data;
+          imageView(data);
+        });
+    imageView(storeid);
+    }
+
+
+    function imageView(images){
+        var delivery = [];
+        var dynamicView = $('div#dynamicImageView');
+        var view = '';
+        view += '<div class="w3-row-padding">';
+        if(images.length === undefined){
+            view += 'No Records Found on '+selectedDate;
+        }
+        else{
+            $.each(images,function(index,item){
+              if(item.categoryId === 'Delivery'){
+                delivery.push(item);
+              }else{
+            var commentsLengthArray = [];
+            var commentLength;
+            if(item.comments === undefined || JSON.stringify(item.comments).length <= 4){
+              commentLength = 0;
+            }
+            else{
+              var comments = JSON.parse(item.comments);
+              $.each(comments,function(a,b){
+              commentsLengthArray.push(a);
+              commentLength = commentsLengthArray.length
+            })
+            }
+            if(item.tagBy === undefined || item.tagBy === ""){
+              item.tagBy = 'No Caption';
+            }
+            view += '<div class="w3-third w3-container w3-margin-bottom">';
+            view +='<b><i class="fa fa-star fa-fw w3-margin-right" style="color:red"></i>:  '+item.categoryId+'</b>';
+            view +='<p style="font-size:14px"><i class="fa fa-star fa-fw w3-margin-right" style="color:blue"></i>: '+item.subCategoryId+'</p>';
+            view +='<p style="font-size:14px"><i class="fa fa-star fa-fw w3-margin-right" style="color:green"></i>:  '+item.tagBy+'</p>';
+            //view +='<img src="/images/'+item.imageName+'" width="320" height="250" class="w3-hover-opacity" onclick="imagePopUp(\''+item.imageName+','+true+'\')">';
+           view +='<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+item.imageName+'" width="320" height="250" class="w3-hover-opacity" onclick="imagePopUp(\''+item.imageName+','+true+'\')">';
+            view += '<br/>';
+            view +='Uploaded on : '+item.createdAt+'</img>';
+            if(usersObj[0].roleId === "Admin"){
+                view += '<br/>';
+                view += '<br/>';
+                view +='<label style="padding:5px">Choose Status :</label>&nbsp;<select class="selectedStatus" id="selectedStatus-'+item._id+'"><option value="none">None Selected</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="In Pending">In Pending</option></select>';
+                view += '<div class="column"><a id="comment'+item._id+'" onclick="commentsPopUp(\''+item._id+'\')">Comments('+commentLength+')</a></div>';
+            }
+            if(usersObj[0].roleId === "Super_Admin"){
+                view += '<div class="main">';
+                    if(item.imageStatus === 'In Pending'){
+                        view += '<div class="divide"><b style="color:blue">Status: '+item.imageStatus+'</b>';
+                    }
+                    else if(item.imageStatus === "Approved"){
+                        view += '<div class="divide"><b style="color:green">Status: '+item.imageStatus+'</b>';
+                    }
+                    else if(item.imageStatus === "Rejected"){
+                        view += '<div class="divide"><b style="color:red">Status: '+item.imageStatus+'</b>';
+                    }
+                    if(item.clarityMessage.length > 0){
+                       view += '<p style="padding:5px"><button id="clarityBtn'+item._id+'" onclick="QueryPopUp(\''+item._id+'\')">Query - '+item.clarityMessage+'</button></p></div>';
+                      }
+                      else{
+                        view += '<p class="hidden" style="padding:5px"><button>ABCDEFGHIJKLMNO</button></p></div>';
+                      }
+                view += '<div class="divide"><a id="comment'+item._id+'" onclick="commentsPopUp(\''+item._id+'\')">Comments('+commentLength+')</a></div>';
+                view += '</div>';
+            }
+            view += ' </div>';
+          }
+        })
+        }
+        view += '</div>';
+        
+        console.log('Array'+JSON.stringify(delivery));
+        console.log(delivery.length);
+        if(delivery.length > 0){
+          view += '<h1>&nbsp;Delivery</h1>';
+          view += '<div class="w3-bottombar"></div><br/>';
+          $.each(delivery,function(index,item){
+
+            var commentsLengthArray = [];
+            var commentLength;
+            if(item.comments === undefined || JSON.stringify(item.comments).length <= 4){
+              commentLength = 0;
+            }
+            else{
+              var comments = JSON.parse(item.comments);
+              $.each(comments,function(a,b){
+              commentsLengthArray.push(a);
+              commentLength = commentsLengthArray.length
+            })
+            }
+
+            if(item.tagBy === undefined || item.tagBy === ""){
+              item.tagBy = 'No Caption';
+            }
+            view += '<div class="w3-third w3-container w3-margin-bottom">';
+            view +='<b><i class="fa fa-star fa-fw w3-margin-right" style="color:red"></i>:  '+item.categoryId+'</b>';
+            view +='<p style="font-size:14px"><i class="fa fa-star fa-fw w3-margin-right" style="color:green"></i>:  '+item.tagBy+'</p>';  
+          //view +='<img src="/images/'+item.imageName+'" width="320" height="250" class="w3-hover-opacity" onclick="imagePopUp(\''+item.imageName+','+true+'\')">';
+           view +='<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+item.imageName+'" width="320" height="250" class="w3-hover-opacity" onclick="imagePopUp(\''+item.imageName+','+true+'\')">';
+            view +='Uploaded on : '+item.createdAt+'</img>';
+            if(usersObj[0].roleId === "Admin"){
+                view += '<br/>';
+                view += '<br/>';
+                view +='<label style="padding:5px">Choose Status :</label>&nbsp;<select class="selectedStatus" id="selectedStatus-'+item._id+'"><option value="none">None Selected</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="In Pending">In Pending</option></select>';
+                view += '<div class="column"><a id="comment'+item._id+'" onclick="commentsPopUp(\''+item._id+'\')">Comments('+commentLength+')</a>&nbsp;&nbsp;<img src="/images/map.png" width="25" onclick="getLatLong(\''+item.imageLocation+'\')"></img></div>';
+            }
+            if(usersObj[0].roleId === "Super_Admin"){
+                view += '<div class="main">';
+                    if(item.imageStatus === 'In Pending'){
+                        view += '<div class="divide"><b style="color:blue">Status: '+item.imageStatus+'</b>';
+                    }
+                    else if(item.imageStatus === "Approved"){
+                        view += '<div class="divide"><b style="color:green">Status: '+item.imageStatus+'</b>';
+                    }
+                    else if(item.imageStatus === "Rejected"){
+                        view += '<div class="divide"><b style="color:red">Status: '+item.imageStatus+'</b>';
+                    }
+                    if(item.clarityMessage.length > 0){
+                       view += '<p style="padding:5px"><button id="clarityBtn'+item._id+'" onclick="QueryPopUp(\''+item._id+'\')">Query - '+item.clarityMessage+'</button></p></div>';
+                      }
+                      else{
+                        view += '<p class="hidden" style="padding:5px"><button>ABCDEFGHIJKLMNO</button></p></div>';
+                      }
+                view += '<div class="divide"><a id="comment'+item._id+'" onclick="commentsPopUp(\''+item._id+'\')">Comments('+commentLength+')</a>&nbsp;&nbsp;<img src="/images/map.png" width="25" onclick="getLatLong(\''+item.imageLocation+'\')"></img></div>';
+                view += '</div>';
+            }
+
+            view += '</div>';
+          });
+
+        }
+
+        dynamicView.empty();
+        dynamicView.append(view);
+
+              $.each(images,function(index,item){
+            $('select#selectedStatus-'+item._id).val(item.imageStatus);
+            })
+
+        var matches = document.querySelectorAll(".selectedStatus");
+          for(var match of matches){
+            match.addEventListener('change',function(event){
+              var id = ''+event.target.id;
+              var idArray = id.split('-');
+              var imageStatus = event.target.value;
+              if(imageStatus !== 'none'){
+              $.ajax({
+                  url: '/image/updateById/'+idArray[1],
+                  type: 'PUT',
+                  data: {
+                  "imageStatus" : imageStatus,
+                  },
+                  success: function(data) {
+                  alert('Status Changed to '+imageStatus);
+                    }
+                  });
+              }
+              else{
+                alert('Wrong Selection None Selected');
+              }
+
+            });
+          }
+    }
+
+    function getDelivery(){
+      $.getJSON('/image/getDeliveryImage/'+selectedDate,function(data){
+          deliveryObj = data;
+          onDelivery(data);
+          });
+    }
+
+
+    function onDelivery(data){
+        var storeMap = new Map(); 
+        $.each(storesObj,function(index,item){
+          storeMap.set(item._id+'',item.storeName);
+        });
+        storeOrDelivery = false;
+        $('div#categoryButton').addClass('hidden');
+        $('#store'+selectedStoreId).removeClass('w3-text-teal');
+        $('#delivery').addClass('w3-text-teal');
+        $('p#filterBySubCat').addClass('hidden');
+        var dynamicView = $('div#dynamicImageView');
+        dynamicView.empty();
+        var view = '';
+        view += '<div class="w3-row-padding">';
+          if(data.length === undefined){
+            view += '<div>No Records Found on '+selectedDate+'</div>';
+          }
+          else{
+            $.each(data,function(index,item){
+            var commentsLengthArray = [];
+            var commentLength;
+            if(item.comments === undefined || JSON.stringify(item.comments).length <= 4){
+              commentLength = 0;
+            }
+            else{
+              var comments = JSON.parse(item.comments);
+              $.each(comments,function(a,b){
+              commentsLengthArray.push(a);
+              commentLength = commentsLengthArray.length
+            })
+            }
+            if(item.tagBy === undefined || item.tagBy === ""){
+              item.tagBy = 'No Caption';
+            }
+            view += '<div class="w3-third w3-container w3-margin-bottom">';
+             var storeName = storeMap.get(item.storeId);
+             if(storeName === undefined){
+
+                  storeName = 'Not Available';             
+
+             }
+             view += '<b> Store  : '+storeName+'</b><br/>';
+            view +='<b>Category :  '+item.categoryId+'</b>';
+            view +='<p style="font-size:14px">Caption : '+item.tagBy+'</p>';
+           //view +='<img src="/images/'+item.imageName+'" width="320" height="250" class="w3-hover-opacity" onclick="imagePopUp(\''+item.imageName+','+true+'\')">';
+           view +='<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+item.imageName+'" width="320" height="250" class="w3-hover-opacity" onclick="imagePopUp(\''+item.imageName+','+true+'\')">';
+            view +='Uploaded on : '+item.createdAt+'</img>';
+            if(usersObj[0].roleId === "Admin"){
+                view += '<br/>';
+                view += '<br/>';
+                view +='<label style="padding:5px">Choose Status :</label>&nbsp;<select class="selectedStatus" id="selectedStatus-'+item._id+'"><option value="none">None Selected</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="In Pending">In Pending</option></select>';
+                view += '<div class="column"><a id="comment'+item._id+'" onclick="commentsPopUp(\''+item._id+'\')">Comments('+commentLength+')</a>&nbsp;&nbsp;<img src="/images/map.png" width="25" onclick="getLatLong(\''+item.imageLocation+'\')"></img></div>';
+            }
+            if(usersObj[0].roleId === "Super_Admin"){
+                view += '<div class="main">';
+                    if(item.imageStatus === 'In Pending'){
+                        view += '<div class="divide"><b style="color:blue">Status: '+item.imageStatus+'</b>';
+                    }
+                    else if(item.imageStatus === "Approved"){
+                        view += '<div class="divide"><b style="color:green">Status: '+item.imageStatus+'</b>';
+                    }
+                    else if(item.imageStatus === "Rejected"){
+                        view += '<div class="divide"><b style="color:red">Status: '+item.imageStatus+'</b>';
+                    }
+                    if(item.clarityMessage.length > 0){
+                       view += '<p style="padding:5px"><button id="clarityBtn'+item._id+'" onclick="QueryPopUp(\''+item._id+'\')">Query - '+item.clarityMessage+'</button></p></div>';
+                      }
+                      else{
+                        view += '<p class="hidden" style="padding:5px"><button>ABCDEFGHIJKLMNO</button></p></div>';
+                      }
+                view += '<div class="divide"><a id="comment'+item._id+'" onclick="commentsPopUp(\''+item._id+'\')">Comments('+commentLength+')</a>&nbsp;&nbsp;<img src="/images/map.png" width="25" onclick="getLatLong(\''+item.imageLocation+'\')"></img></div>';
+                view += '</div>';
+            }
+            view += ' </div>';
+          
+        })
+
+
+          }
+        view += '</div>';
+        dynamicView.append(view);
+    }
+
+    //Comments Pop Up
+    var commentsArray = [];
+
+    function commentsPopUp(id){
+      var comments;
+      var clarityStatus;
+      $.getJSON('/image/getById/'+id, function(data){
+        if(data.comments === undefined || JSON.stringify(data.comments).length <= 4){
+              comments = 'Empty';
+              }
+            else{
+              comments = JSON.parse(data.comments);
+            }
+      clarityStatus = data.clarityStatus;
+      
+      var commentModal = $('div#commentsPopUp');
+      var comment = '';
+      comment += '';
+      comment += '<div id="myModal" class="modal">';
+      comment += '<div class="modal-content">';
+      comment += '<span id="close" class="close"><i class="fa fa-times" aria-hidden="true"></i></span>';
+      comment += '<h3 style="text-align:center"><u>Comments Section</u></h3><br/>';
+
+      if(storeOrDelivery){
+
+        if(clarityStatus){
+        comment += '<b>Query?</b>&nbsp;&nbsp;<input id="query" class="query" type="checkbox" name="query" value="'+id+'" checked onclick="return false;">&nbsp;enable re-upload option<br/>';
+      }
+      else{
+        comment += '<b>Query?</b>&nbsp;&nbsp;<input id="query" class="query" type="checkbox" name="query" value="'+id+'">&nbsp;enable re-upload option<br/><br/>';
+      }
+
+      }
+
+ 
+      comment +='<br/>';
+      comment += '<label>Enter Comments:</label>&nbsp;<input type="text" id="com" name="comment">&nbsp;<button id="comment"><i class="fa fa-comments-o" aria-hidden="true"></i>&nbsp;Comment</button><br/>';
+      comment += '<div id="commentTable"></div>';
+      comment += '<br/>';
+      comment += '</div>';
+      comment += '</div>';
+      commentModal.empty();
+      commentModal.append(comment);
+      commentsTable(comments);
+
+      document.getElementById('myModal').style.display="block";
+      $('span#close').click(function(){
+        document.getElementById('myModal').style.display="none";
+        commentsArray = [];
+      });
+
+      var query = document.querySelectorAll(".query");
+          for(var q of query){
+            q.addEventListener('change',function(event){
+                if(event.target.checked){
+                  var id = event.target.value;
+                  $.ajax({
+                  url: '/image/updateById/'+id,
+                  type: 'PUT',
+                  data: {
+                  "clarityStatus" : true,
+                  "clarityMessage": "Waiting"
+                  },
+                  success: function(data) {
+                  console.log(data);
+                  $('button#clarityBtn'+id).text('Query - Waiting');
+                    }
+                  });
+                }
+              })
+            }
+
+            $('button#comment').click(function(){
+
+              var inpComment = $('input#com').val();
+              $('input#com').val(' ');
+              if(inpComment+'' === '' || inpComment === ' '){
+                alert('Comment Box is Empty');
+              }
+              else{
+              var obj = {
+                user:usersObj[0].userName,
+                type: usersObj[0].roleId,
+                date: getFormattedDateAndTime(new Date()),
+                comment:inpComment 
+                }
+                commentsArray.push(obj);
+              $.ajax({
+              url: '/image/updateById/'+id,
+              type: 'PUT',
+              data: {
+                "comments" : JSON.stringify(commentsArray)
+              },
+              success: function(data) {
+                $('a#comment'+id).text("Comments("+commentsArray.length+")");
+                commentsTable(commentsArray);
+                }
+              });
+              }
+            })
+      });
+    }
+
+
+    function commentsTable(comments){
+        
+        commentsArray = [];
+      var commentTable = $('div#commentTable');
+      var comment = '';
+
+      if(comments === 'Empty'){
+        comment +='<br/>';
+        comment +='<p>No Comments Found</p>';
+
+      }
+      else{
+        comment +='<br/>';
+        comment += '<div class="w3-container w3-padding-large" style="margin-bottom:32px">';
+        comment += '<h4><b><u>Comments</u></b></h4>';
+        $.each(comments,function(index,item){
+            commentsArray.push(item);
+        comment += '<p><b>'+item.user+' | '+item.type+'</b></p>';
+        comment += '<span class="w3-large">'+item.comment+'</span><br>';
+        comment += '<span>Commented on : '+item.date+'</span>';
+        })
+        comment += '</div>';
+      }
+      commentTable.empty();
+      commentTable.append(comment);
+    }
+
+    // Image Pop Up
+    function imagePopUp(imageName){
+
+      var imageString = ''+imageName;
+      var imageArray = imageString.split(',');
+      if(imageArray[1]==='false'){
+        document.getElementById('queryModal').style.display="none";
+      }
+      var imageModal = $('div#imagePopUp');
+      var image = '';
+      image += '<div id="imageModal" class="imgmodal">';
+      image += '<span id="close" class="imgclose">&times;</span>';
+     //image += '<img class="imgmodal-content" src="/images/'+imageArray[0]+'">';
+     image += '<img class="imgmodal-content" src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+imageArray[0]+'">';
+      image += '<div class="imgcaption"></div>';
+      image += '</div>';
+      imageModal.empty();
+      imageModal.append(image); 
+       document.getElementById('imageModal').style.display="block";
+        $('span#close').click(function(){
+        document.getElementById('imageModal').style.display="none";
+        if(imageArray[1] === 'false'){
+          document.getElementById('queryModal').style.display="block";
+        }
+        });
+    }
+
+    //Query Pop Up
+    function QueryPopUp(id){
+
+      var images;
+      var imageId;
+      var categoryId;
+      var subCategoryId
+      var imageStatus
+      var imageName;
+      var clarityStatus;
+      var clarityObj;
+
+      $.getJSON('/image/getById/'+id,function(result){
+
+            images = result;
+            imageId = result._id;
+            categoryId = result.categoryId;
+            subCategoryId = result.subCategoryId;
+            imageStatus = result.imageStatus;
+            imageName = result.imageName;
+            clarityMessage = result.clarityMessage;
+            clarityStatus = result.clarityStatus;
+            createdAt = result.createdAt;
+                  if(result.comments === undefined || JSON.stringify(result.comments).length <= 4){
+                    comments = 'Empty';
+                  }
+                  else{
+                    comments = JSON.parse(result.comments);
+                  }
+                  if(result.tagBy === undefined || result.tagBy === ""){
+                    result.tagBy = 'No Caption';
+                  }
+                  var queryModal = $('div#queryPopUp');
+                  var query = '';
+                  query += '';
+                  query += '<div id="queryModal" class="modal">';
+                  query += '<div class="modal-content">';
+                  query += '<span id="closeQueryModal" class="close"><i class="fa fa-times" aria-hidden="true"></i></span>';
+                  query += '<h3 style="text-align:center"><u>Query Section</u></h3><br/>';
+                  query += '<b>Category : '+categoryId+'  |  Sub Category : '+subCategoryId+'  | Caption : '+result.tagBy+'</b>';
+                  query += '<br/>';
+                      if(imageStatus === 'In Pending'){
+                        query += '<b style="color:blue">Status: '+imageStatus+'</b>';
+                      }
+                      else if(imageStatus === "Approved"){
+                        query += '<b style="color:green">Status: '+imageStatus+'</b>';
+                      }
+                      else if(imageStatus === "Rejected"){
+                        query += '<b style="color:red">Status: '+imageStatus+'</b>';
+                      }
+                      query += '<div class="w3-row-padding w3-padding-16">';
+         
+                     query += '<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+imageName+'" style="width:100%" onclick="imagePopUp(\''+imageName+','+false+'\')">';
+                    //query += '<img src="/images/'+imageName+'" style="width:100%" onclick="imagePopUp(\''+imageName+','+false+'\')">';
+                      query += '<p>Uploded on : '+createdAt+'</img>';
+                      $.getJSON('/clarity/getClarityImageByImageId/'+imageId,function(result){
+                                clarityObj = result;
+                      if(clarityObj.response === undefined){
+                        $.each(clarityObj,function(index,item){
+                          query += '<div class="w3-col m6">';
+                        query += '<img src="https://serroindiiousinteger.s3.ap-south-1.amazonaws.com/'+item.clarityName+'" style="width:100%" onclick="imagePopUp(\''+item.clarityName+','+false+'\')">';
+                        //query += '<img src="/images/'+item.clarityName+'" style="width:100%" onclick="imagePopUp(\''+item.clarityName+','+false+'\')">';
+                        query += '<p>Uploded on : '+item.createdAt+'</img>';
+                        query += '</div>';
+                      });
+                      }
+                  query += '</div>';   
+                  query += '<br/>';
+                  if(!clarityStatus){
+                    query += '<button id="clarify" disabled>Close Query for Manager</button>';
+                      }
+                      else{
+                        query += '<button id="clarify">Close Query for Manager</button>';
+                      }
+                      query +='<hr/>';
+                      query += '<h4><b><u>Comments</u></b></h4>';
+                      if(comments === 'Empty'){
+                        query += '<br/>';
+                        query += '<p>No Comments Found</p>';
+                      }
+                      else{
+                      query += '<div class="w3-container w3-padding-large" style="margin-bottom:32px">';
+                    $.each(comments,function(index,item){
+                      query += '<p><b>'+item.user+' | '+item.type+'</b></p>';
+                      query += '<span class="w3-large">'+item.comment+'</span><br>';
+                      query += '<span>Commented on : '+item.date+'</span>';
+                    })
+                    query += '</div>';
+                    }
+                  query += '</div>';
+                  query += '</div>';
+                  queryModal.empty();
+                  queryModal.append(query);
+
+                    document.getElementById('queryModal').style.display="block";
+                      $('span#closeQueryModal').click(function(){
+                    document.getElementById('queryModal').style.display="none";
+                      });
+
+                      $('#clarify').click(function(){
+                        alert('Query Clarified..!!');
+                        $.ajax({
+                        url: '/image/updateById/'+imageId,
+                        type: 'PUT', 
+                        data: {
+                        "clarityStatus" : false,
+                        "clarityMessage": "Clarified"
+                        },
+                    success: function(data) {
+                    console.log(data);
+                    $('button#clarityBtn'+imageId).html('Query - Clarified');
+                    console.log(imageId);
+                    $('#clarityStatus'+imageId).prop("checked", false);  
+                }
+            });
+            })
+
+                    });
+          });
+    }
+
+    //Function which return the Date Format in DD-MM-YYYY HH:MM:SS
+    function getFormattedDateAndTime(d){
+
+            var format;
+            month = '' + (d.getMonth() + 1),
+            day = '' + d.getDate(),
+            year = d.getFullYear();
+            if (month.length < 2) 
+            month = '0' + month;
+            if (day.length < 2) 
+            day = '0' + day;
+            hours = '' + (d.getHours());
+            if(hours >=12){
+                if(hours!==12){
+                hours = hours%12;
+                }
+            format = 'PM';
+            }
+            else{
+            format = 'AM';
+            }
+            if(hours < 10){
+            if(hours === 0){
+                hours = 12;
+            }else{
+                hours = ''+ 0 + hours;
+            }
+            }
+            
+            minutes = d.getMinutes()
+            if(minutes < 10){
+            minutes = ''+ 0 + minutes;
+            }
+            seconds = d.getSeconds()
+            if(seconds < 10){
+            seconds = ''+ 0 + seconds;
+            }
+            var time = [hours,minutes,seconds].join(':');
+            var today = [day,month,year,].join('-');
+
+            return  today +' | '+ time +' '+format;
+
+            }
+
+           // Function which return the Date Format in DD-MM-YYYY 
+
+            function getFormattedDate(d){
+
+            var format;
+            month = '' + (d.getMonth() + 1),
+            day = '' + d.getDate(),
+            year = d.getFullYear();
+            if (month.length < 2) 
+            month = '0' + month;
+            if (day.length < 2) 
+            day = '0' + day;
+            hours = '' + (d.getHours());
+            if(hours >=12){
+                if(hours!==12){
+                hours = hours%12;
+                }
+            }
+            if(hours < 10){
+            if(hours === 0){
+                hours = 12;
+            }else{
+                hours = ''+ 0 + hours;
+            }
+            }
+
+            var today = [day,month,year,].join('-');
+
+            return  today ;
+
+            }
+
+            function getLatLong(lat){
+            var store =  JSON.parse(stores);
+             var mapModal =  $('div#mapModal');
+             var maps = '';
+             var driverLatLong = lat+'';
+             var driverLatLongArray = driverLatLong.split(',');
+             var latitude = driverLatLongArray[0];
+             var longitude = driverLatLongArray[1];
+             maps += '<div id="mapMod" class="imgmodal">';
+             maps += '<span id="close" class="imgclose">&times;</span>';
+             maps += '<div id="googleMap" style="width:100%;height:500px;"></div>';
+             maps += '</div>';
+             mapModal.empty();
+             mapModal.append(maps);
+            var mapProp= {
+            center:new google.maps.LatLng(parseFloat(latitude), parseFloat(longitude)),
+            zoom:18,
+          };
+          var map = new google.maps.Map(document.getElementById("googleMap"),mapProp);
+          var driverMarker = new google.maps.Marker({
+            position: new google.maps.LatLng(parseFloat(latitude), parseFloat(longitude)),
+            map:map,
+            title:'Driver',
+            icon:'/images/person_icon.png'
+          });
+
+          $.each(store,function(index,item){
+          var latLong = ''+item.storeLocation;
+          console.log('lat long'+latLong);
+          latLongArray = latLong.split(',');
+          console.log('lat'+latLongArray[0]+'long'+latLongArray[1]);
+
+
+          var Marker = new google.maps.Marker({
+            position: new google.maps.LatLng(parseFloat(latLongArray[0]), parseFloat(latLongArray[1])),
+            map:map,
+            title:item.storeName,
+            icon:'/images/hotem_icon.png'
+          });
+
+
+
+            var OuterCircle = new google.maps.Circle({
+
+            strokeColor: '#0000ff',
+
+            strokeOpacity: 0.8,
+
+            strokeWeight: 2,
+
+            fillColor: '#0000ff',
+
+            fillOpacity: 0.35,
+
+            map: map,
+
+            center: new google.maps.LatLng(parseFloat(latLongArray[0]), parseFloat(latLongArray[1])),
+
+            radius: 100
+
+            });
+
+
+          });
+
+              document.getElementById('mapMod').style.display="block";
+              $('span#close').click(function(){
+              document.getElementById('mapMod').style.display="none";
+            });
+            }
+
+</script>
+</head>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSlBN9eQZSfUirxFQ-ERj868Uxg-mYgQQ"></script>
+<body class="w3-light-grey w3-content" style="max-width:1600px">
+
+    <nav class="w3-sidebar w3-collapse w3-white w3-animate-left" style="z-index:3;width:300px;" id="mySidebar"><br>
+        <div class="w3-container">
+          <a onclick="w3_close()" class="w3-hide-large w3-right w3-jumbo w3-padding w3-hover-grey" title="close menu">
+            <i class="fa fa-remove"></i>
+          </a>
+          <img src="/images/thatteidli.jpg" style="width:45%;" class="w3-round"><br><br>
+          <h4><b>BRAHMINS' THATTE IDLI</b></h4>
+          <button onclick="location.href = '/thatte/login';" class="w3-button w3-white"><i class="fa fa-sign-out w3-margin-right"></i>LogOut</button> <button onclick="location.href = '/thatte/changePassword';" class="w3-button w3-white"><i class="fa fa-key w3-margin-right"></i>Change Password</button>
+          <h6><b>&nbsp;<u>Stores List</u></b></h6>
+        </div>
+        <div class="w3-bar-block">
+            <a id="store<%=stores[0]._id%>" onclick="onStore('<%= stores[0]._id%>')" class="w3-bar-item w3-button w3-padding w3-text-teal"><i class="fa-fw w3-margin-right"></i><%= stores[0].storeName%></a>
+            <% for(var i=1; i < stores.length; i++){ %>
+                <a id="store<%=stores[i]._id%>" onclick="onStore('<%= stores[i]._id%>')" class="w3-bar-item w3-button w3-padding"><i class="fa-fw w3-margin-right"></i><%= stores[i].storeName%></a> 
+                <% } %>
+            <a id="delivery" onclick="getDelivery()" class="w3-bar-item w3-button w3-padding"><i class="fa-fw w3-margin-right"></i>Delivery</a>  
+        </div>
+      </nav>
+
+<!-- Overlay effect when opening sidebar on small screens -->
+<div class="w3-overlay w3-hide-large w3-animate-opacity" onclick="w3_close()" style="cursor:pointer" title="close side menu" id="myOverlay"></div>
+
+<!-- !PAGE CONTENT! -->
+<div class="w3-main" style="margin-left:300px">
+
+  <!-- Header -->
+  <header id="portfolio">
+    <span class="w3-button w3-hide-large w3-xxlarge w3-hover-text-grey" onclick="w3_open()"><i class="fa fa-bars"></i></span>
+    <div class="w3-container">
+
+      <h1><b>Welcome, <%= users[0].userName%></b></h1>
+	    <p>Filter By Date:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type="date" id="datePicker" class="datePicker"></p>
+      <span class="w3-margin-right">Filter By Status:</span> 
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<button class="w3-button w3-black btn" value="All"><i class="fa fa-fa fa-list-alt w3-margin-right"></i> ALL</button>
+      <button class="w3-button w3-green btn" value="Approved"><i class="fa fa-check w3-margin-right"></i>Approved</button>
+      <button class="w3-button w3-red btn" value="Rejected"><i class="fa fa-ban w3-margin-right"></i>Rejected</button>
+      <button class="w3-button w3-blue btn" value="In Pending"><i class="fa fa-clock-o w3-margin-right"></i>In Pending</button>
+	    <button class="w3-button w3-yellow btn" value="Query"><i class="fa fa-question-circle w3-margin-right"></i>Query</button><br/><br/>
+      <div id="categoryButton"></div>
+      <p id="filterBySubCat">Filter By Sub Category:&nbsp;&nbsp;&nbsp;&nbsp;<select id="subCategory"><option value="All">All</option></select>&nbsp;&nbsp;&nbsp;&nbsp;<b>Category =></b><i class="fa fa-star fa-fw w3-margin-right" style="color:red"></i>&nbsp;&nbsp;<b>Sub Category =></b><i class="fa fa-star fa-fw w3-margin-right" style="color:blue"></i>&nbsp;&nbsp;<b>Caption => </b><i class="fa fa-star fa-fw w3-margin-right" style="color:green"></i></p>
+    </div>
+    <div class="w3-bottombar"></div>
+  </header>
+  <br/>
+  <div id="dynamicImageView"></div>
+  <div id="imagePopUp"></div>
+  <div id="commentsPopUp"></div>
+  <div id="queryPopUp"></div>
+  <div id="mapModal"></div>
+</div>
+
+<script>
+// Script to open and close sidebar
+function w3_open() {
+    document.getElementById("mySidebar").style.display = "block";
+    document.getElementById("myOverlay").style.display = "block";
+}
+ 
+function w3_close() {
+    document.getElementById("mySidebar").style.display = "none";
+    document.getElementById("myOverlay").style.display = "none";
+}
+</script>
+
+</body>
+</html>
